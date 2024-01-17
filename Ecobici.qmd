@@ -6,21 +6,82 @@ editor: visual
 
 ## Análisis de datos Programa ECOBICI
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+### Idea:
 
-## Running Code
+Este proyecto intenta abordar un análisis completo del programa [ECOBICI](https://data.buenosaires.gob.ar/dataset/bicicletas-publicas) a través de 3 fuentes de datos:
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+Usuarios
 
-```{r}
-1 + 1
+Estaciones
+
+Recorridos
+
+## Instalamos librerias
+
+```{r librerias, warning=FALSE}
+
+rm(list = ls()) 
+
+###################################################################################
+# Instalamos librerías de trabajo
+
+for( package in c("shiny", "datasets", "shinydashboard", "DT", "lubridate","kableExtra","tidyverse", "plotly","leaflet","sf","sp")) {
+  
+  if (!require(package, character.only = T, quietly = T)) {
+    install.packages(package, repos = "http://cran.us.r-project.org")
+    library(package, character.only = T)
+  }
+}
+
+
+
+###################################################################################
+
+
 ```
 
-You can add options to executable code like this
+## Descargamos bases de trabajo
 
-```{r}
-#| echo: false
-2 * 2
+```{r descargas, warning=FALSE}
+
+# leemos archivo de trabajo (USUARIOS)
+
+linkusu <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/bicicletas-publicas/usuarios_ecobici_2023.csv"
+
+datausu <- read.csv(linkusu, encoding = "UTF-8")
+
+data <- datausu %>%
+  head(10)
+
+#limpieza
+
+datausu <- datausu %>%
+  mutate("Genero" = case_when( genero_usuario == "MALE" ~ "Masculino",
+                               genero_usuario == "FEMALE" ~ "Femenino",
+                               TRUE ~ "Otro"),
+         "Fecha" = ymd(fecha_alta),
+         "Mes" = month(Fecha, label = TRUE),
+         "Día" = wday(Fecha,label = TRUE, abbr = FALSE),
+         "Hora" = hms(hora_alta),
+         "Edad" = as.numeric(as.character(edad_usuario)),
+         "Año" = year(fecha_alta),
+         "EdadRec" = case_when(Edad >= 0 & Edad < 15 ~ "Menores de 15",
+                               Edad >= 15 & Edad < 20 ~ "de 15 hasta 20",
+                            Edad >= 20 & Edad < 25 ~ "de 20 hasta 25",
+                            Edad >= 25 & Edad < 30 ~ "de 25 hasta 30",
+                            Edad >= 30 & Edad < 35 ~ "de 30 hasta 35",
+                            Edad >= 35 & Edad < 40 ~ "de 35 hasta 40",
+                            Edad >= 40 & Edad < 45 ~ "de 40 hasta 45",
+                            Edad >= 45 & Edad < 50 ~ "de 45 hasta 50",
+                            Edad >= 50 & Edad < 55 ~ "de 50 hasta 55",
+                            TRUE ~ "Mayores de 55"))
+
+Tabla1 <- datausu %>%
+  group_by(Genero) %>%
+  summarise(Total = n()) %>%
+  mutate("%" = round(Total/sum(Total)*100,2))
+
+###################################################################################
+
+
 ```
-
-The `echo: false` option disables the printing of code (only output is displayed).

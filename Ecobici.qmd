@@ -81,7 +81,74 @@ Tabla1 <- datausu %>%
   summarise(Total = n()) %>%
   mutate("%" = round(Total/sum(Total)*100,2))
 
+
+
 ###################################################################################
 
 
+```
+
+```{r descargas, warning=FALSE}
+
+# leemos archivo de trabajo (RECORRIDOS)
+
+link<- ("https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/bicicletas-publicas/recorridos-realizados-2022.zip")
+
+temp <- tempfile()
+download.file(link,temp)
+data <- read.csv(unz(temp, "trips_2021.csv"), encoding = "UTF-8")
+unlink(temp)
+
+# limpieza data
+
+data1 <- data %>%
+  head(20)
+
+# data %>%
+#   str()
+
+# limpieza duración recorrido
+
+data$duracion_recorrido <- sub(",", "", data$duracion_recorrido, fixed = TRUE)
+
+data <- data %>%
+  mutate("Duración_recorrido" = as.numeric(as.character(data$duracion_recorrido)),
+         "Fecha_origen" = ymd_hms(data$fecha_origen_recorrido),
+         "Fecha_destino" = ymd_hms(data$fecha_destino_recorrido),
+         "Duración_real" = Fecha_destino - Fecha_origen,
+         "Mes_origen" = month(Fecha_origen, label = TRUE),
+         "Día_origen" = wday(Fecha_origen, label = TRUE, abbr = FALSE))
+
+
+
+```
+
+```{r descargas, warning=FALSE}
+
+##(PRUEBA DESCARGA ESTACIONES)
+
+link <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/estaciones-bicicletas-publicas/nuevas-estaciones-bicicletas-publicas.csv"
+dataest <- read.csv(link)
+
+##(PRUEBA LEVANTA BASES DE ESTACIONES YA DESCARGADAS)
+
+estaciones <- st_read("data/estaciones-de-bicicletas-zip/IE-Estaciones.shp")
+
+##(DESCARGA MAPA BARRIOS CABA)
+
+barrios <- st_read('https://bitsandbricks.github.io/data/CABA_barrios.geojson')
+
+
+estaciones <- estaciones %>% 
+  mutate("Región" = case_when(COMUNA %in% c("COMUNA 12","COMUNA 13","COMUNA 14","COMUNA 2") ~ "Norte",
+                              COMUNA %in% c("COMUNA 5","COMUNA 6","COMUNA 7","COMUNA 10","COMUNA 11","COMUNA 15","COMUNA 1","COMUNA 3") ~ "Centro",
+                              COMUNA %in% c("COMUNA 8","COMUNA 4","COMUNA 9") ~ "Sur",
+                              COMUNA == "" ~ "Sin Informar"))
+
+tabla_1 <- estaciones %>% 
+  select(COMUNA) %>% 
+  group_by(COMUNA) %>% 
+  summarize(Total = n())
+  
+  
 ```

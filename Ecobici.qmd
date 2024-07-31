@@ -16,18 +16,23 @@ Estaciones
 
 Recorridos
 
+### Preguntas/Objetivos:
+
+Indagar acerca de los centros y periferias en relación a la cobertura territorial en base a la oferta del programa (Estaciones) así como también su demanda (Recorridos)
+
+Evaluar la densidad de recorridos (puntos origen - puntos destino) en función de los horarios y del dia (habil - fin de semana) para comprender la dinámica del uso como medio de transporte ya sea hacia lugares de trabajo / unviersidades, como de recreación.
+
+Analizar la duración de recorridos en minutos y las distancias abordadas con el objeto de utilizar como insumo para abordar la temática de ciudad de 15 minutos (isocronas).
+
+Evaluar las tipologías que adquiere la movilidad urbana en el programa ECOBICI tomando en consideración el género y edad de usuarios, asi como tambien los destinos más comunes
+
+Indagar acerca de la influencia climática en la demanda del programa.
 
 ### recursos
 
-https://github.com/datosgcba/taller-api-transporte/blob/master/Estaciones_bicicletas_publicas.Rmd
-https://rpubs.com/andresvecchio/Viajes_Urbanos
-https://rpubs.com/andresvecchio/608604
+https://github.com/datosgcba/taller-api-transporte/blob/master/Estaciones_bicicletas_publicas.Rmd https://rpubs.com/andresvecchio/Viajes_Urbanos (centroides, ruteos, distancias) https://rpubs.com/andresvecchio/608604 (osmdata)
 
-### Visualizaciones ###########################
-
-Sectores: estaciones por comuna 
-
-Sectores: estaciones por barrio
+### Visualizaciones
 
 geom_line: Evolutivo mensual de recorridos por género
 
@@ -51,7 +56,6 @@ ggmap: puntos con origen y destino de un dia no hábil (puede ser animado mañan
 
 ggmap: puntos con origen y destino de un dia hábil por género (?)
 
-
 ## Pendientes
 
 RUTEO SUBTES CIUDAD 15 MIN ( VER https://martoalalu.github.io/about/)
@@ -61,11 +65,6 @@ API CLIMA (HECHO MEDIANTE SCRAPING VER https://github.com/GuilleFerchero/Scrap_s
 VER SI EL HTML RENDERIZA BIEN COMO PARA ENTREGARLO
 
 VER COMO MANEJAR EL TEMA DE RECORRIDOS POR EL VOLUMEN DE LA INFO
-
-
-
-
-
 
 ## Instalamos librerias
 
@@ -94,7 +93,9 @@ pacman::p_load("DT",
 
 ```
 
-## Descargamos bases de trabajo
+##Descargamos bases de trabajo
+
+###Uusuarios
 
 ```{r descargas, warning=FALSE}
 
@@ -140,6 +141,8 @@ datausu <- datausu %>%
 
 ```
 
+### Recorridos
+
 ```{r descargas, warning=FALSE}
 
 # leemos archivo de trabajo (RECORRIDOS)
@@ -167,13 +170,14 @@ datareco <- data %>%
          "Fecha_origen" = ymd_hms(data$fecha_origen_recorrido),
          "Fecha_destino" = ymd_hms(data$fecha_destino_recorrido),
          "Duración_real" = Fecha_destino - Fecha_origen,
-         "Mes_origen" = month(Fecha_origen, label = TRUE),
-         "Día_origen" = wday(Fecha_origen, label = TRUE, abbr = FALSE))
+         "Mes_origen" = my(data$fecha_origen_recorrido),
+         "Día_label_origen" = wday(Fecha_origen, label = TRUE, abbr = FALSE),
+         "Día_origen" = as.Date(data$fecha_origen_recorrido))
 
 #Extraer la actividad de un dia:
 
-fechalim1 <- as.Date("2023-04-01")
-fechalim2 <- as.Date("2023-04-02")
+fechalim1 <- as.Date("2023-07-07")
+fechalim2 <- as.Date("2023-07-08")
 
 dataday <- datareco %>% 
   filter(Fecha_origen  > fechalim1 & Fecha_origen  < fechalim2)
@@ -181,6 +185,8 @@ dataday <- datareco %>%
 
 
 ```
+
+### Estaciones
 
 ```{r descargas, warning=FALSE}
 
@@ -194,7 +200,7 @@ dataest <- st_read(linkest)
 #barrios <- st_read('https://bitsandbricks.github.io/data/CABA_barrios.geojson')
 
 
-estaciones <- dataest %>% 
+estaciones <- dataest |>  
   mutate("Región" = case_when(COMUNA %in% c("COMUNA 12","COMUNA 13","COMUNA 14","COMUNA 2") ~ "Norte",
                               COMUNA %in% c("COMUNA 5","COMUNA 6","COMUNA 7","COMUNA 10","COMUNA 11","COMUNA 15","COMUNA 1","COMUNA 3") ~ "Centro",
                               COMUNA %in% c("COMUNA 8","COMUNA 4","COMUNA 9") ~ "Sur",
@@ -207,6 +213,42 @@ estaciones <- dataest %>%
   
   
 ```
+
+### Clima
+
+```{r}
+
+clima <- read.csv("data/clima_aeroparque_2023.csv", sep = ";")
+
+clima <- clima |> 
+  mutate(Fecha = dmy(Fecha))
+  
+  
+
+```
+
+## Gráficos descriptivos
+
+Evolutivo mensual de recorridos
+
+```{r}
+tabla_mensual_reco <- datareco %>% 
+  group_by(Día_origen, Día_label_origen) %>% 
+  summarise(total = n()) 
+
+ggplot(tabla_mensual_reco, aes(x = Día_origen, y = total))+
+  geom_col()+
+  theme_minimal()
+
+```
+
+
+
+
+
+
+
+
 
 ## Mapa interactivo con estaciones
 

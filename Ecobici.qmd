@@ -16,6 +16,57 @@ Estaciones
 
 Recorridos
 
+
+### recursos
+
+https://github.com/datosgcba/taller-api-transporte/blob/master/Estaciones_bicicletas_publicas.Rmd
+https://rpubs.com/andresvecchio/Viajes_Urbanos
+https://rpubs.com/andresvecchio/608604
+
+### Visualizaciones ###########################
+
+Sectores: estaciones por comuna 
+
+Sectores: estaciones por barrio
+
+geom_line: Evolutivo mensual de recorridos por género
+
+geom_line: Evolutivo mensual de recorridos por temp max y min
+
+geom_boxplot: duración de recorrido por género/ edad (?)
+
+geom_histogram: Distribución de usuarios según cantidad de recorridos efectuados
+
+Mapa leaflet: estaciones con popup de anclajes, nombre y cant de recorridos 2023 (?)
+
+Density map: cant de estaciones
+
+Density map: Estaciones por cantidad de recorridos (JOIN ESTACIONES RECORRIDOS)
+
+Density map: puntos de orígen (?)
+
+ggmap: puntos con origen y destino de un dia en hábil (puede ser animado mañana - tarde - noche) VER HORAS PICOS
+
+ggmap: puntos con origen y destino de un dia no hábil (puede ser animado mañana - tarde - noche)
+
+ggmap: puntos con origen y destino de un dia hábil por género (?)
+
+
+## Pendientes
+
+RUTEO SUBTES CIUDAD 15 MIN ( VER https://martoalalu.github.io/about/)
+
+API CLIMA (HECHO MEDIANTE SCRAPING VER https://github.com/GuilleFerchero/Scrap_smn)
+
+VER SI EL HTML RENDERIZA BIEN COMO PARA ENTREGARLO
+
+VER COMO MANEJAR EL TEMA DE RECORRIDOS POR EL VOLUMEN DE LA INFO
+
+
+
+
+
+
 ## Instalamos librerias
 
 ```{r librerias, warning=FALSE}
@@ -24,16 +75,19 @@ rm(list = ls())
 
 ###################################################################################
 # Instalamos librerías de trabajo
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load("DT", 
+               "lubridate",
+               "tidyverse",
+               "leaflet",
+               "sf",
+               "scales",
+               "ggmap",
+               "osmdata",
+               "showtext",
+               "ggtext")
 
-for( package in c("shiny", "datasets", "shinydashboard", "DT", "lubridate","kableExtra","tidyverse", "plotly","leaflet","sf","sp")) {
-  
-  if (!require(package, character.only = T, quietly = T)) {
-    install.packages(package, repos = "http://cran.us.r-project.org")
-    library(package, character.only = T)
-  }
-}
-
-
+#recurso :https://stackoverflow.com/questions/4090169/elegant-way-to-check-for-missing-packages-and-install-them
 
 ###################################################################################
 
@@ -44,14 +98,12 @@ for( package in c("shiny", "datasets", "shinydashboard", "DT", "lubridate","kabl
 
 ```{r descargas, warning=FALSE}
 
-# leemos archivo de trabajo (USUARIOS)
+#leemos archivo de trabajo (USUARIOS)
 
-linkusu <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/bicicletas-publicas/usuarios_ecobici_2023.csv"
+#linkusu <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/bicicletas-publicas/usuarios_ecobici_2023.csv"
 
-datausu <- read.csv(linkusu, encoding = "UTF-8")
+datausu <- read.csv("data/usuarios_ecobici_2023.csv", encoding = "UTF-8")
 
-data <- datausu %>%
-  head(10)
 
 #limpieza
 
@@ -76,10 +128,10 @@ datausu <- datausu %>%
                             Edad >= 50 & Edad < 55 ~ "de 50 hasta 55",
                             TRUE ~ "Mayores de 55"))
 
-Tabla1 <- datausu %>%
-  group_by(Genero) %>%
-  summarise(Total = n()) %>%
-  mutate("%" = round(Total/sum(Total)*100,2))
+# Tabla1 <- datausu %>%
+#   group_by(Genero) %>%
+#   summarise(Total = n()) %>%
+#   mutate("%" = round(Total/sum(Total)*100,2))
 
 
 
@@ -92,11 +144,10 @@ Tabla1 <- datausu %>%
 
 # leemos archivo de trabajo (RECORRIDOS)
 
-link<- ("https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/bicicletas-publicas/recorridos-realizados-2022.zip")
+link<- ("data/recorridos-realizados-2023.zip")
 
-temp <- tempfile()
-download.file(link,temp)
-data <- read.csv(unz(temp, "trips_2021.csv"), encoding = "UTF-8")
+temp <- tempfile(link)
+data <- read.csv(unz(link, "trips_2023.csv"), encoding = "UTF-8")
 unlink(temp)
 
 # limpieza data
@@ -111,13 +162,21 @@ data1 <- data %>%
 
 data$duracion_recorrido <- sub(",", "", data$duracion_recorrido, fixed = TRUE)
 
-data <- data %>%
+datareco <- data %>%
   mutate("Duración_recorrido" = as.numeric(as.character(data$duracion_recorrido)),
          "Fecha_origen" = ymd_hms(data$fecha_origen_recorrido),
          "Fecha_destino" = ymd_hms(data$fecha_destino_recorrido),
          "Duración_real" = Fecha_destino - Fecha_origen,
          "Mes_origen" = month(Fecha_origen, label = TRUE),
          "Día_origen" = wday(Fecha_origen, label = TRUE, abbr = FALSE))
+
+#Extraer la actividad de un dia:
+
+fechalim1 <- as.Date("2023-04-01")
+fechalim2 <- as.Date("2023-04-02")
+
+dataday <- datareco %>% 
+  filter(Fecha_origen  > fechalim1 & Fecha_origen  < fechalim2)
 
 
 
@@ -126,29 +185,53 @@ data <- data %>%
 ```{r descargas, warning=FALSE}
 
 ##(PRUEBA DESCARGA ESTACIONES)
+linkest <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/estaciones-bicicletas-publicas/nuevas-estaciones-bicicletas-publicas.geojson"
 
-link <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/estaciones-bicicletas-publicas/nuevas-estaciones-bicicletas-publicas.csv"
-dataest <- read.csv(link)
-
-##(PRUEBA LEVANTA BASES DE ESTACIONES YA DESCARGADAS)
-
-estaciones <- st_read("data/estaciones-de-bicicletas-zip/IE-Estaciones.shp")
+dataest <- st_read(linkest)
 
 ##(DESCARGA MAPA BARRIOS CABA)
 
-barrios <- st_read('https://bitsandbricks.github.io/data/CABA_barrios.geojson')
+#barrios <- st_read('https://bitsandbricks.github.io/data/CABA_barrios.geojson')
 
 
-estaciones <- estaciones %>% 
+estaciones <- dataest %>% 
   mutate("Región" = case_when(COMUNA %in% c("COMUNA 12","COMUNA 13","COMUNA 14","COMUNA 2") ~ "Norte",
                               COMUNA %in% c("COMUNA 5","COMUNA 6","COMUNA 7","COMUNA 10","COMUNA 11","COMUNA 15","COMUNA 1","COMUNA 3") ~ "Centro",
                               COMUNA %in% c("COMUNA 8","COMUNA 4","COMUNA 9") ~ "Sur",
                               COMUNA == "" ~ "Sin Informar"))
 
-tabla_1 <- estaciones %>% 
-  select(COMUNA) %>% 
-  group_by(COMUNA) %>% 
-  summarize(Total = n())
+# tabla_1 <- estaciones %>% 
+#   select(COMUNA) %>% 
+#   group_by(COMUNA) %>% 
+#   summarize(Total = n())
   
   
+```
+
+## Mapa interactivo con estaciones
+
+```{r}
+
+m <- leaflet() %>%
+  addTiles() %>%  # Añade por defecto los Tiles de  OpenStreetMap
+  #setView(lng = -58.5318469, lat = -34.6265903, zoom = 10) %>% 
+  addMarkers(data = estaciones , lat = ~Lat, lng = ~Lon, popup = ~ paste0("Estación: ", NOMBRE, " Anclajes: ", ANCLAJES),clusterOptions = markerClusterOptions())
+  
+m  # Imprime el mapa
+
+
+```
+
+## Mapa interactivo con recorridos
+
+```{r}
+
+r <- leaflet() %>%
+  addTiles() %>%  # Añade por defecto los Tiles de  OpenStreetMap
+  #setView(lng = -58.5318469, lat = -34.6265903, zoom = 10) %>% 
+  addMarkers(data = dataday , lat = ~lat_estacion_origen, lng = ~long_estacion_origen, popup = ~ paste0("Fecha Origen: ", fecha_origen_recorrido, " Duración: ", duracion_recorrido),clusterOptions = markerClusterOptions())
+  
+r  # Imprime el mapa
+
+
 ```

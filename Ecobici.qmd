@@ -18,37 +18,39 @@ Recorridos
 
 ### Preguntas/Objetivos:
 
-Indagar acerca de los centros y periferias en relación a la cobertura territorial en base a la oferta del programa (Estaciones) así como también su demanda (Recorridos)
+A) Indagar acerca de los centros y periferias en relación a la cobertura territorial en base a la oferta del programa (Estaciones) así como también su demanda (Recorridos/Usuarios)
 
-Evaluar la densidad de recorridos (puntos origen - puntos destino) en función de los horarios y del dia (habil - fin de semana) para comprender la dinámica del uso como medio de transporte ya sea hacia lugares de trabajo / unviersidades, como de recreación.
+B) Evaluar la densidad de recorridos (puntos origen - puntos destino) en función de los horarios y del dia (habil - fin de semana) para comprender la dinámica del uso como medio de transporte ya sea hacia lugares de trabajo / unviersidades, como de recreación (EST ORIGEN = EST DESTINO).
 
-Analizar la duración de recorridos en minutos y las distancias abordadas con el objeto de utilizar como insumo para abordar la temática de ciudad de 15 minutos (isocronas).
+C) Analizar la duración de recorridos en minutos y las distancias abordadas con el objeto de utilizar como insumo para abordar la temática de ciudad de 15 minutos (isocronas).
 
-Evaluar las tipologías que adquiere la movilidad urbana en el programa ECOBICI tomando en consideración el género y edad de usuarios, asi como tambien los destinos más comunes
+D) Evaluar las tipologías que adquiere la movilidad urbana en el programa ECOBICI tomando en consideración el género y edad de usuarios, asi como tambien los destinos más comunes Y COSTOS (https://baecobici.com.ar/#/es/pases)
 
-Indagar acerca de la influencia climática en la demanda del programa.
+E) Indagar acerca de la influencia climática en la demanda del programa.
 
 ### recursos
 
-https://github.com/datosgcba/taller-api-transporte/blob/master/Estaciones_bicicletas_publicas.Rmd https://rpubs.com/andresvecchio/Viajes_Urbanos (centroides, ruteos, distancias) https://rpubs.com/andresvecchio/608604 (osmdata)
+https://github.com/datosgcba/taller-api-transporte/blob/master/Estaciones_bicicletas_publicas.Rmd 
+https://rpubs.com/andresvecchio/Viajes_Urbanos (centroides, ruteos, distancias) 
+https://rpubs.com/andresvecchio/608604 (osmdata)
 
 ### Visualizaciones
 
 geom_line: Evolutivo mensual de recorridos por género
 
-geom_line: Evolutivo mensual de recorridos por temp max y min
+geom_line: Evolutivo mensual de recorridos por temp max y min E) (Ver si se puede agregar labels con temperaturas promedio mensuales y facet wrap dias con lluvia / sin lluvia)
 
-geom_boxplot: duración de recorrido por género/ edad (?)
+geom_boxplot: duración de recorrido por mes A)
 
-geom_histogram: Distribución de usuarios según cantidad de recorridos efectuados
+geom_histogram: Distribución de usuarios según cantidad de recorridos efectuados A) 
 
-Mapa leaflet: estaciones con popup de anclajes, nombre y cant de recorridos 2023 (?)
+Mapa leaflet: estaciones con popup de anclajes, nombre y cant de recorridos 2023 A)
 
-Density map: cant de estaciones
+Density map: cant de estaciones A) 
 
-Density map: Estaciones por cantidad de recorridos (JOIN ESTACIONES RECORRIDOS)
+Density map: Estaciones por cantidad de recorridos (JOIN ESTACIONES RECORRIDOS) A) E)
 
-Density map: puntos de orígen (?)
+Density map: puntos de orígen B) 
 
 ggmap: puntos con origen y destino de un dia en hábil (puede ser animado mañana - tarde - noche) VER HORAS PICOS
 
@@ -62,15 +64,14 @@ RUTEO SUBTES CIUDAD 15 MIN ( VER https://martoalalu.github.io/about/)
 
 API CLIMA (HECHO MEDIANTE SCRAPING VER https://github.com/GuilleFerchero/Scrap_smn)
 
-VER SI EL HTML RENDERIZA BIEN COMO PARA ENTREGARLO
 
-VER COMO MANEJAR EL TEMA DE RECORRIDOS POR EL VOLUMEN DE LA INFO
 
 ## Instalamos librerias
 
 ```{r librerias, warning=FALSE}
 
 rm(list = ls()) 
+options(scipen = 999)
 
 ###################################################################################
 # Instalamos librerías de trabajo
@@ -103,12 +104,12 @@ pacman::p_load("DT",
 
 #linkusu <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/bicicletas-publicas/usuarios_ecobici_2023.csv"
 
-datausu <- read.csv("data/usuarios_ecobici_2023.csv", encoding = "UTF-8")
+datausu2022 <- read.csv("data/usuarios_ecobici_2022.csv", encoding = "UTF-8")
 
 
 #limpieza
 
-datausu <- datausu %>%
+datausu2022 <- datausu2022 %>%
   mutate("Genero" = case_when( genero_usuario == "MALE" ~ "Masculino",
                                genero_usuario == "FEMALE" ~ "Femenino",
                                TRUE ~ "Otro"),
@@ -129,15 +130,50 @@ datausu <- datausu %>%
                             Edad >= 50 & Edad < 55 ~ "de 50 hasta 55",
                             TRUE ~ "Mayores de 55"))
 
-# Tabla1 <- datausu %>%
-#   group_by(Genero) %>%
-#   summarise(Total = n()) %>%
-#   mutate("%" = round(Total/sum(Total)*100,2))
-
 
 
 ###################################################################################
 
+
+#FUNCIÓN PARA LEVANTAR USUARIOS ANUALES
+
+get_usuarios <- function(añoini,añofin){
+  
+  list <- seq(añoini,añofin)
+  
+  datausuarios <- data.frame()
+  
+  for (i in list) {
+    link <- glue::glue("data/usuarios_ecobici_{i}.csv")
+    
+    usuarios <- read.csv(link, encoding = "UTF-8")
+    usuarios <- usuarios %>%
+    mutate("Genero" = case_when( genero_usuario == "MALE" ~ "Masculino",
+                               genero_usuario == "FEMALE" ~ "Femenino",
+                               TRUE ~ "Otro"),
+         "Fecha" = ymd(fecha_alta),
+         "Mes" = month(Fecha, label = TRUE),
+         "Día" = wday(Fecha,label = TRUE, abbr = FALSE),
+         "Hora" = hms(hora_alta),
+         "Edad" = as.numeric(as.character(edad_usuario)),
+         "Año" = year(fecha_alta),
+         "EdadRec" = case_when(Edad >= 0 & Edad < 15 ~ "Menores de 15",
+                               Edad >= 15 & Edad < 20 ~ "de 15 hasta 20",
+                            Edad >= 20 & Edad < 25 ~ "de 20 hasta 25",
+                            Edad >= 25 & Edad < 30 ~ "de 25 hasta 30",
+                            Edad >= 30 & Edad < 35 ~ "de 30 hasta 35",
+                            Edad >= 35 & Edad < 40 ~ "de 35 hasta 40",
+                            Edad >= 40 & Edad < 45 ~ "de 40 hasta 45",
+                            Edad >= 45 & Edad < 50 ~ "de 45 hasta 50",
+                            Edad >= 50 & Edad < 55 ~ "de 50 hasta 55",
+                            TRUE ~ "Mayores de 55"))
+    datausuarios <- rbind(datausuarios,usuarios)
+    
+  }
+  return(datausuarios)
+}
+
+data_usuarios <- get_usuarios(2020,2023)
 
 ```
 
@@ -155,8 +191,8 @@ unlink(temp)
 
 # limpieza data
 
-data1 <- data %>%
-  head(20)
+# data1 <- data %>%
+#   head(20)
 
 # data %>%
 #   str()
@@ -170,9 +206,14 @@ datareco <- data %>%
          "Fecha_origen" = ymd_hms(data$fecha_origen_recorrido),
          "Fecha_destino" = ymd_hms(data$fecha_destino_recorrido),
          "Duración_real" = Fecha_destino - Fecha_origen,
-         "Mes_origen" = my(data$fecha_origen_recorrido),
          "Día_label_origen" = wday(Fecha_origen, label = TRUE, abbr = FALSE),
-         "Día_origen" = as.Date(data$fecha_origen_recorrido))
+         "Día_origen" = as.Date(data$fecha_origen_recorrido),
+         "Mes_origen" = as.numeric(format(Día_origen,"%m")))
+
+#######SELECCIONAR LAS VARIABLES QUE VOY A USAR
+
+rm(data)
+
 
 #Extraer la actividad de un dia:
 
@@ -200,7 +241,7 @@ dataest <- st_read(linkest)
 #barrios <- st_read('https://bitsandbricks.github.io/data/CABA_barrios.geojson')
 
 
-estaciones <- dataest |>  
+estaciones <- dataest %>%  
   mutate("Región" = case_when(COMUNA %in% c("COMUNA 12","COMUNA 13","COMUNA 14","COMUNA 2") ~ "Norte",
                               COMUNA %in% c("COMUNA 5","COMUNA 6","COMUNA 7","COMUNA 10","COMUNA 11","COMUNA 15","COMUNA 1","COMUNA 3") ~ "Centro",
                               COMUNA %in% c("COMUNA 8","COMUNA 4","COMUNA 9") ~ "Sur",
@@ -220,12 +261,72 @@ estaciones <- dataest |>
 
 clima <- read.csv("data/clima_aeroparque_2023.csv", sep = ";")
 
-clima <- clima |> 
+clima <- clima %>%  
   mutate(Fecha = dmy(Fecha))
   
   
 
 ```
+
+## Uniones
+
+```{r}
+#Tabla Estaciones con cantidad de recorridos
+
+datareco <- datareco %>% 
+  mutate(Est_origen = as.numeric(substr(nombre_estacion_origen,1,3)),
+         Est_destino = as.numeric(substr(nombre_estacion_destino,1,3)))
+
+tablaori <- datareco %>% 
+  group_by(Est_origen) %>% 
+  summarise(recorridos = n()) %>% 
+  rename("NUMERO" = Est_origen)
+
+estaciones <- left_join(estaciones,tablaori)
+
+```
+
+```{r}
+#Tabla Usuarios con cantidad de recorridos
+
+datareco <- datareco %>% 
+  mutate(id_usuario_limpio = as.numeric(str_replace(id_usuario,"BAEcobici","")))
+
+tablausu <- datareco %>% 
+  group_by(id_usuario_limpio) %>% 
+  summarise(recorridos = n()) %>% 
+  rename("ID_usuario" = id_usuario_limpio)
+
+datausu <- left_join(datausu,tablausu)
+
+```
+
+```{r}
+
+#BASE RECORRIDOS CON INFO DE EDAD Y GENERO (join con usuarios 2020-2023)
+
+
+tabla_usu_rec <- data_usuarios %>% 
+  select(ID_usuario,Genero,Edad,EdadRec,Año) %>% 
+  rename("id_usuario_limpio" = ID_usuario)
+
+datareco <- left_join(datareco,tabla_usu_rec)
+
+#controlo cuantos quedan afuera
+
+nrow(datareco %>% 
+       filter(!is.na(Edad)))/nrow(datareco)
+
+
+
+```
+
+
+
+
+
+
+
 
 ## Gráficos descriptivos
 
@@ -233,15 +334,47 @@ Evolutivo mensual de recorridos
 
 ```{r}
 tabla_mensual_reco <- datareco %>% 
-  group_by(Día_origen, Día_label_origen) %>% 
+  group_by(Mes_origen) %>% 
   summarise(total = n()) 
 
-ggplot(tabla_mensual_reco, aes(x = Día_origen, y = total))+
+ggplot(tabla_mensual_reco, aes(x = Mes_origen, y = total))+
   geom_col()+
+  scale_x_continuous(breaks = c(seq(1,12, by = 1)))+
   theme_minimal()
 
 ```
 
+
+Promedio de viajes diarios por mes 
+
+```{r}
+tabla_prom_mensual_reco <- datareco %>% 
+  group_by(Mes_origen,Día_origen) %>% 
+  summarise(total = n()) %>% 
+  ungroup() %>% 
+  group_by(Mes_origen) %>% 
+  summarise(promedio = round(mean(total),2))
+
+ggplot(tabla_prom_mensual_reco, aes(x = Mes_origen, y = promedio))+
+  geom_line()+
+  geom_point()+
+  scale_x_continuous(breaks = c(seq(1,12, by = 1)))+
+  theme_minimal()
+
+```
+
+boxplot duración recorridos
+
+
+
+```{r}
+
+ggplot(datareco %>% 
+         filter(Duración_real < 200 & Edad %in% c(15:80)), aes(x = Edad, y = Duración_real))+
+  geom_point()
+
+
+```
 
 
 
